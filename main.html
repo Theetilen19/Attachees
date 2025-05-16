@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attachee Management</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        button { padding: 5px 10px; margin-top: 5px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background: #45a049; }
+        input, select { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        .attachee-card { background: #f9f9f9; margin-top: 10px; }
+        .task-item { margin-left: 20px; }
+        .feedback-item { color: #555; font-style: italic; }
+        h3 { color: #2c3e50; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Attachee Management System</h1>
+    
+    <div class="card">
+        <h2>Add New Attachee</h2>
+        <input id="nameInput" placeholder="Name" required>
+        <select id="divisionInput" required>
+            <option value="">Select Division</option>
+            <option value="Engineering">Engineering</option>
+            <option value="TechPrograms">Tech Programs</option>
+            <option value="RadioSupport">Radio Support</option>
+            <option value="HubSupport">Hub Support</option>
+        </select>
+        <button onclick="addAttachee()">Add Attachee</button>
+    </div>
+    
+    <div class="card">
+        <h2>Assign Task</h2>
+        <select id="taskAttacheeSelect" required>
+            <option value="">Select Attachee</option>
+        </select>
+        <input id="taskInput" placeholder="Task description" required>
+        <input type="date" id="dueDateInput" required>
+        <button onclick="assignTask()">Assign Task</button>
+    </div>
+    
+    <div class="card">
+        <h2>Add Feedback/Score</h2>
+        <select id="feedbackAttacheeSelect" required>
+            <option value="">Select Attachee</option>
+        </select>
+        <input id="feedbackInput" placeholder="Feedback">
+        <input type="number" id="scoreInput" placeholder="Score (0-100)" min="0" max="100">
+        <button onclick="addFeedback()">Add Feedback</button>
+    </div>
+    
+    <h2>Current Attachees</h2>
+    <div id="attacheesContainer"></div>
+
+    <script>
+        // Attachee Class
+        class Attachee {
+            constructor(name, division) {
+                this.id = Date.now();
+                this.name = name;
+                this.division = division;
+                this.tasks = [];
+                this.feedback = [];
+                this.scores = [];
+            }
+            addTask(description, dueDate) {
+                this.tasks.push({
+                    id: Date.now(),
+                    description,
+                    dueDate,
+                    completed: false
+                });
+            }
+            addFeedback(text) {
+                this.feedback.push({
+                    id: Date.now(),
+                    text,
+                    date: new Date().toLocaleDateString()
+                });
+            }
+            addScore(score) {
+                this.scores.push({
+                    id: Date.now(),
+                    score,
+                    date: new Date().toLocaleDateString()
+                });
+            }
+            getAverageScore() {
+                if (this.scores.length === 0) return 0;
+                const sum = this.scores.reduce((total, item) => total + item.score, 0);
+                return sum / this.scores.length;
+            }
+        }
+        // Task Manager Class
+        class TaskManager {
+            constructor() {
+                this.attachees = [];
+            }
+            addAttachee(attachee) {
+                this.attachees.push(attachee);
+                return attachee;
+            }
+            getAttacheeById(id) {
+                return this.attachees.find(a => a.id === id);
+            }
+        }
+        const manager = new TaskManager();
+
+        // UI Functions
+        function refreshDropdowns() {
+            const selects = [
+                document.getElementById('taskAttacheeSelect'),
+                document.getElementById('feedbackAttacheeSelect')
+            ];
+            selects.forEach(select => {
+                // Save current selection
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Select Attachee</option>';
+                manager.attachees.forEach(attachee => {
+                    const option = document.createElement('option');
+                    option.value = attachee.id;
+                    option.textContent = `${attachee.name} (${attachee.division})`;
+                    select.appendChild(option);
+                });
+                // Restore selection if still valid
+                if (manager.attachees.some(a => a.id.toString() === currentValue)) {
+                    select.value = currentValue;
+                }
+            });
+        }
+        function displayAttachees() {
+            const container = document.getElementById('attacheesContainer');
+            container.innerHTML = '';
+            
+            if (manager.attachees.length === 0) {
+                container.innerHTML = '<p>No attachees added yet</p>';
+                return;
+            }
+            manager.attachees.forEach(attachee => {
+                const card = document.createElement('div');
+                card.className = 'card attachee-card';  
+                // Calculate completion percentage
+                const completedTasks = attachee.tasks.filter(t => t.completed).length;
+                const completionPercent = attachee.tasks.length > 0 
+                    ? Math.round((completedTasks / attachee.tasks.length) * 100) 
+                    : 0; 
+                card.innerHTML = `
+                    <h3>${attachee.name} <small>(${attachee.division})</small></h3>
+                    <p><strong>Average Score:</strong> ${attachee.getAverageScore().toFixed(1)}/100</p>
+                    <p><strong>Tasks:</strong> ${completedTasks}/${attachee.tasks.length} completed (${completionPercent}%)</p>
+                    
+                    <div class="tasks-section">
+                        <h4>Tasks:</h4>
+                        ${attachee.tasks.length > 0 
+                            ? `<ul>${attachee.tasks.map(task => `
+                                <li class="task-item">
+                                    ${task.description} (Due: ${task.dueDate})
+                                    <button onclick="toggleTask(${attachee.id}, ${task.id})">
+                                        ${task.completed ? '✓ Completed' : 'Mark Complete'}
+                                    </button>
+                                </li>`).join('')}
+                            </ul>`
+                            : '<p>No tasks assigned yet</p>'}
+                    </div>
+                    <div class="feedback-section">
+                        <h4>Feedback:</h4>
+                        ${attachee.feedback.length > 0 
+                            ? `<ul>${attachee.feedback.map(fb => `
+                                <li class="feedback-item">
+                                    "${fb.text}" <small>(${fb.date})</small>
+                                </li>`).join('')}
+                            </ul>`
+                            : '<p>No feedback yet</p>'}
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+        function refreshUI() {
+            refreshDropdowns();
+            displayAttachees();
+        }
+        function addAttachee() {
+            const nameInput = document.getElementById('nameInput');
+            const divisionInput = document.getElementById('divisionInput');
+            
+            if (!nameInput.value || !divisionInput.value) {
+                alert('Please enter both name and division');
+                return;
+            }
+            
+            const newAttachee = new Attachee(nameInput.value, divisionInput.value);
+            manager.addAttachee(newAttachee);
+            
+            // Clear inputs
+           // nameInput.value = '';
+           // divisionInput.value = '';
+            
+            refreshUI();
+        }
+
+        function assignTask() {
+            const attacheeSelect = document.getElementById('taskAttacheeSelect');
+            const taskInput = document.getElementById('taskInput');
+            const dueDateInput = document.getElementById('dueDateInput');
+            
+            if (!attacheeSelect.value || !taskInput.value || !dueDateInput.value) {
+                alert('Please select an attachee and enter task details');
+                return;
+            }
+            
+            const attachee = manager.getAttacheeById(parseInt(attacheeSelect.value));
+            if (attachee) {
+                attachee.addTask(taskInput.value, dueDateInput.value);
+                
+                // Clear inputs
+                taskInput.value = '';
+                dueDateInput.value = '';
+                
+                refreshUI();
+            }
+        }
+
+        function addFeedback() {
+            const attacheeSelect = document.getElementById('feedbackAttacheeSelect');
+            const feedbackInput = document.getElementById('feedbackInput');
+            const scoreInput = document.getElementById('scoreInput');
+            
+            if (!attacheeSelect.value || (!feedbackInput.value && !scoreInput.value)) {
+                alert('Please select an attachee and provide feedback or score');
+                return;
+            }
+            const attachee = manager.getAttacheeById(parseInt(attacheeSelect.value));
+            if (attachee) {
+                if (feedbackInput.value) {
+                    attachee.addFeedback(feedbackInput.value);
+                }
+                if (scoreInput.value) {
+                    attachee.addScore(parseInt(scoreInput.value));
+                }
+                // Clear inputs
+                feedbackInput.value = '';
+                scoreInput.value = '';
+                
+                refreshUI();
+            }
+        }
+        function toggleTask(attacheeId, taskId) {
+            const attachee = manager.getAttacheeById(attacheeId);
+            if (attachee) {
+                const task = attachee.tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.completed = !task.completed;
+                    refreshUI();
+                }
+            }
+        }
+        refreshUI();
+    </script>
+</body>
+</html>
